@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path"
 )
@@ -52,6 +54,7 @@ func (s5 *S3SSMSecret) Put(in *os.File) (s3objkey string, err error) {
 	log.Println(os.Stderr, "Input shasum is ", shasum)
 	s5.tmpf.Seek(0, os.SEEK_SET)
 	s3objkey = path.Join(s5.Path, shasum)
+	s3url := fmt.Sprintf("s3://%s", path.Join(s5.Bucket, s3objkey))
 	if !s5.ObjectExists(s3objkey) {
 		// TODO: encrypt object
 		s5.s3c.PutObject(&s3.PutObjectInput{
@@ -59,19 +62,19 @@ func (s5 *S3SSMSecret) Put(in *os.File) (s3objkey string, err error) {
 			Key:    aws.String(s3objkey),
 			Body:   s5.tmpf,
 		})
-		log.Printf("Object created at s3://%s", path.Join(s5.Bucket, s3objkey))
+		log.Printf("Object created at %s", s3url)
 	}
 	// put in ssm
 	if _, err = s5.ssmc.PutParameter(&ssm.PutParameterInput{
 		Name:        aws.String(s5.Path),
 		Description: aws.String("Pointer to s3 object"),
 		Overwrite:   aws.Bool(true),
-		Value:       aws.String(s3objkey),
+		Value:       aws.String(s3url),
 		Type:        aws.String("String"),
 	}); err != nil {
 		log.Fatal("Couldn't put ssm: ", err)
 	}
-	log.Printf("Put s3 key s3://%s in ssm under %s", path.Join(s5.Bucket, s3objkey), s5.Path)
+	log.Printf("Put s3 URL %s in ssm under %s", s3url, s5.Path)
 	return
 }
 
@@ -102,11 +105,15 @@ func (s5 *S3SSMSecret) Get(out *os.File) (s3key string, err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s3key = aws.StringValue(ssmparam.Parameter.Value)
+	fullurl := aws.StringValue(ssmparam.Parameter.Value)
+	parsedurl, err := url.Parse(fullurl)
+	if err != nil {
+		log.Fatal("Couldn't parse s3 url", err)
+	}
 	// TODO: Bucket should be part of path
 	obj, err := s5.s3c.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(s5.Bucket),
-		Key:    aws.String(s3key),
+		Bucket: aws.String(parsedurl.Host),
+		Key:    aws.String(parsedurl.Path),
 	})
 	if err != nil {
 		log.Fatalf("Could not get s3 path s3://%s from parameter %s: %s",
@@ -117,6 +124,7 @@ func (s5 *S3SSMSecret) Get(out *os.File) (s3key string, err error) {
 	}
 	defer obj.Body.Close()
 	io.Copy(out, obj.Body)
+	log.Print("wrote s3 content to output")
 	return
 }
 
@@ -124,11 +132,20 @@ func main() {
 	var opts struct {
 		Region string `short:"r" long:"region" description:"aws region" required:"t"`
 		Path   string `short:"p" long:"path" description:"path for secret in ssm, and (with shasum) s3" required:"t"`
-		Bucket string `short:"b" long:"bucket" description:"bucket in which to place secrets" required:"t"`
+		Bucket string `short:"b" long:"bucket" description:"bucket in which to place secrets"`
 		Op     string `short:"O" long:"operation" description:"operation, get or put" choice:"get" choice:"put" required:"t"`
 	}
 	if _, err := flags.Parse(&opts); err != nil {
 		panic(err)
+	}
+	if opts.Op == "put" {
+		if opts.Bucket == "" {
+			log.Fatal("On put operations, bucket command line option must be specified")
+		}
+	} else if opts.Op == "get" {
+		if opts.Bucket != "" {
+			log.Fatal("On get operations, bucket comes from settings value and be specified as a command line option")
+		}
 	}
 	s5 := &S3SSMSecret{Region: opts.Region, Path: opts.Path, Bucket: opts.Bucket}
 	s5.Initialize()
