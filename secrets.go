@@ -7,7 +7,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3crypto"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/jessevdk/go-flags"
 	"io"
@@ -22,6 +24,7 @@ type S3SSMSecret struct {
 	Region string
 	Path   string
 	Bucket string
+	Key    string
 	sess   *session.Session
 	awscfg *aws.Config
 	s3c    *s3.S3
@@ -30,10 +33,10 @@ type S3SSMSecret struct {
 }
 
 func (s5 *S3SSMSecret) Initialize() {
-	s5.sess = session.Must(session.NewSession())
 	s5.awscfg = aws.NewConfig().WithRegion(s5.Region)
-	s5.s3c = s3.New(s5.sess, s5.awscfg)
-	s5.ssmc = ssm.New(s5.sess, s5.awscfg)
+	s5.sess = session.Must(session.NewSession(s5.awscfg))
+	s5.s3c = s3.New(s5.sess)
+	s5.ssmc = ssm.New(s5.sess)
 }
 
 func (s5 *S3SSMSecret) Put(in *os.File) (s3objkey string, err error) {
@@ -56,13 +59,19 @@ func (s5 *S3SSMSecret) Put(in *os.File) (s3objkey string, err error) {
 	s3objkey = path.Join(s5.Path, shasum)
 	s3url := fmt.Sprintf("s3://%s", path.Join(s5.Bucket, s3objkey))
 	if !s5.ObjectExists(s3objkey) {
-		// TODO: encrypt object
-		s5.s3c.PutObject(&s3.PutObjectInput{
+		handler := s3crypto.NewKMSKeyGenerator(kms.New(s5.sess), s5.Key)
+		svc := s3crypto.NewEncryptionClient(s5.sess, s3crypto.AESGCMContentCipherBuilder(handler))
+		putres, err := svc.PutObject(&s3.PutObjectInput{
 			Bucket: aws.String(s5.Bucket),
 			Key:    aws.String(s3objkey),
 			Body:   s5.tmpf,
 		})
-		log.Printf("Object created at %s", s3url)
+		if err != nil {
+			log.Fatal("Couldn't PutObject to S3:", err)
+		}
+		log.Printf("Object created at %s, etag %s", s3url, aws.StringValue(putres.ETag))
+	} else {
+		log.Printf("Object at %s already exists, with equal shasum (%s), and is assumed to be the same", s3url, shasum)
 	}
 	// put in ssm
 	if _, err = s5.ssmc.PutParameter(&ssm.PutParameterInput{
@@ -111,7 +120,8 @@ func (s5 *S3SSMSecret) Get(out *os.File) (s3key string, err error) {
 		log.Fatal("Couldn't parse s3 url", err)
 	}
 	// TODO: Bucket should be part of path
-	obj, err := s5.s3c.GetObject(&s3.GetObjectInput{
+	svc := s3crypto.NewDecryptionClient(s5.sess)
+	obj, err := svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(parsedurl.Host),
 		Key:    aws.String(parsedurl.Path),
 	})
@@ -133,21 +143,30 @@ func main() {
 		Region string `short:"r" long:"region" description:"aws region" required:"t"`
 		Path   string `short:"p" long:"path" description:"path for secret in ssm, and (with shasum) s3" required:"t"`
 		Bucket string `short:"b" long:"bucket" description:"bucket in which to place secrets"`
+		Key    string `short:"k" long:"key" description:"key with which to client-encrypt secrets"`
 		Op     string `short:"O" long:"operation" description:"operation, get or put" choice:"get" choice:"put" required:"t"`
 	}
 	if _, err := flags.Parse(&opts); err != nil {
-		panic(err)
+		log.Fatal("Could not parse command line options:", err)
 	}
 	if opts.Op == "put" {
 		if opts.Bucket == "" {
 			log.Fatal("On put operations, bucket command line option must be specified")
+		}
+		if opts.Key == "" {
+			log.Fatal("On put operations, key command line option must be specified")
 		}
 	} else if opts.Op == "get" {
 		if opts.Bucket != "" {
 			log.Fatal("On get operations, bucket comes from settings value and be specified as a command line option")
 		}
 	}
-	s5 := &S3SSMSecret{Region: opts.Region, Path: opts.Path, Bucket: opts.Bucket}
+	s5 := &S3SSMSecret{
+		Region: opts.Region,
+		Path:   opts.Path,
+		Bucket: opts.Bucket,
+		Key:    opts.Key,
+	}
 	s5.Initialize()
 	if opts.Op == "put" {
 		s5.Put(os.Stdin)
