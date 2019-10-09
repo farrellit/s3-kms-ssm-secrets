@@ -13,4 +13,4 @@ test:
 
 publish:
 	GOOS=linux GOARCH=amd64 go build -o secrets.linux-amd64 secrets.go
-	aws s3 cp --region us-west-2 --profile dodsandbox --acl public-read secrets.linux-amd64 s3://env-sandbox-secretsbucket-vcuhbvikk21y/getsecrets/linux/amd64/$$(shasum -a 256 < secrets.linux-amd64 | awk '{print $$1}')/getsecrets
+	aws s3 cp --acl public-read secrets.linux-amd64 s3://${publish_bucket}/getsecrets/linux/amd64/$$(shasum -a 256 < secrets.linux-amd64 | awk '{print $$1}')/getsecrets
