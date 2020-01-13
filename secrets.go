@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 )
 
 type S3SSMSecret struct {
@@ -107,14 +108,20 @@ func (s5 *S3SSMSecret) ObjectExists(s3objkey string) (objexists bool) {
 }
 
 func (s5 *S3SSMSecret) Get(out *os.File) (s3key string, err error) {
-	ssmparam, err := s5.ssmc.GetParameter(&ssm.GetParameterInput{
-		Name:           aws.String(s5.Path),
-		WithDecryption: aws.Bool(true),
-	})
-	if err != nil {
-		log.Fatal(err)
+	var fullurl string
+	if strings.HasPrefix(s5.Path, "s3://") {
+		log.Println("Path starts with s3:// - no ssm param needs to be retrieved (this is primarily meant for cloudformation ssm parameters)")
+		fullurl = s5.Path
+	} else {
+		ssmparam, err := s5.ssmc.GetParameter(&ssm.GetParameterInput{
+			Name:           aws.String(s5.Path),
+			WithDecryption: aws.Bool(true),
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		fullurl = aws.StringValue(ssmparam.Parameter.Value)
 	}
-	fullurl := aws.StringValue(ssmparam.Parameter.Value)
 	parsedurl, err := url.Parse(fullurl)
 	if err != nil {
 		log.Fatal("Couldn't parse s3 url", err)
@@ -141,7 +148,7 @@ func (s5 *S3SSMSecret) Get(out *os.File) (s3key string, err error) {
 func main() {
 	var opts struct {
 		Region string `short:"r" long:"region" description:"aws region" required:"t"`
-		Path   string `short:"p" long:"path" description:"path for secret in ssm, and (with shasum) s3" required:"t"`
+		Path   string `short:"p" long:"path" description:"path for secret in ssm, or direct s3 link to be used with cloudformation ssm input" required:"t"`
 		Bucket string `short:"b" long:"bucket" description:"bucket in which to place secrets"`
 		Key    string `short:"k" long:"key" description:"key with which to client-encrypt secrets"`
 		Op     string `short:"O" long:"operation" description:"operation, get or put" choice:"get" choice:"put" required:"t"`
@@ -158,7 +165,7 @@ func main() {
 		}
 	} else if opts.Op == "get" {
 		if opts.Bucket != "" {
-			log.Fatal("On get operations, bucket comes from settings value and be specified as a command line option")
+			log.Fatal("On get operations, bucket comes from settings value and cannot be specified as a command line option")
 		}
 	}
 	s5 := &S3SSMSecret{
