@@ -40,7 +40,7 @@ func (s5 *S3SSMSecret) Initialize() {
 	s5.ssmc = ssm.New(s5.sess)
 }
 
-func (s5 *S3SSMSecret) Put(in *os.File) (s3objkey string, err error) {
+func (s5 *S3SSMSecret) Put(in io.Reader) (s3objkey string, err error) {
 	if s5.tmpf, err = ioutil.TempFile("", "*"); err != nil {
 		log.Fatal("Temporary file could not be created: ", err)
 	}
@@ -107,7 +107,7 @@ func (s5 *S3SSMSecret) ObjectExists(s3objkey string) (objexists bool) {
 	return
 }
 
-func (s5 *S3SSMSecret) Get(out *os.File) (s3key string, err error) {
+func (s5 *S3SSMSecret) Get(out io.Writer) (s3key string, err error) {
 	var fullurl string
 	if strings.HasPrefix(s5.Path, "s3://") {
 		log.Println("Path starts with s3:// - no ssm param needs to be retrieved (this is primarily meant for cloudformation ssm parameters)")
