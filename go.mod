@@ -1,6 +1,6 @@
 module github.com/doctorondemand/s3-kms-ssm-secrets
 
-replace github.com/doctorondemand/dod-config/secrets => ./secrets
+replace github.com/doctorondemand/s3-kms-ssm-secrets/secrets => ./secrets
 
 go 1.13
 
