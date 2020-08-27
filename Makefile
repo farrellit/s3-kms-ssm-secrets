@@ -1,6 +1,6 @@
 test:
 	go fmt secrets.go
-	go build secrets.go
+	go build -o secrets.local secrets.go
 	set +e; \
 	tmpfile="$$(mktemp)"; \
 	trap "rm $$tmpfile" EXIT; \
@@ -8,10 +8,10 @@ test:
 	sha256="$$(shasum -a 256 < $${tmpfile} | awk '{print $$1}')"; \
 	echo "hi world, shasum is $$sha256"; \
 	for i in `seq 1 2`; do \
-		./secrets -O put -b farrellit-us-east-2 -p /path/to/secret -r us-east-2 -k arn:aws:kms:us-east-2:122377349983:key/646668c4-175b-4158-b55e-56cc8dbda6f7 < $${tmpfile}; \
-		[[ "$$(shasum -a 256 < $${tmpfile})" = "$$(./secrets -O get -p /path/to/secret -r us-east-2 | shasum -a 256)" ]] || { echo "Failed get comparison"; exit 1; }; \
+		./secrets.local -O put -b farrellit-us-east-2 -p /path/to/secret -r us-east-2 -k arn:aws:kms:us-east-2:122377349983:key/646668c4-175b-4158-b55e-56cc8dbda6f7 < $${tmpfile}; \
+		[[ "$$(shasum -a 256 < $${tmpfile})" = "$$(./secrets.local -O get -p /path/to/secret -r us-east-2 | shasum -a 256)" ]] || { echo "Failed get comparison"; exit 1; }; \
 	done ; \
-	[[ "$$(shasum -a 256 < $${tmpfile})" = "$$(./secrets -O get -p s3://farrellit-us-east-2/path/to/secret/$$sha256  -r us-east-2 | shasum -a 256)" ]] || { echo "Failed get comparison"; exit 1; };
+	[[ "$$(shasum -a 256 < $${tmpfile})" = "$$(./secrets.local -O get -p s3://farrellit-us-east-2/path/to/secret/$$sha256  -r us-east-2 | shasum -a 256)" ]] || { echo "Failed get comparison"; exit 1; };
 
 publish:
 	GOOS=linux GOARCH=amd64 go build -o secrets.linux-amd64 secrets.go
