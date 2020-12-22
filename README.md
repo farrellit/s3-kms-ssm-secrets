@@ -11,7 +11,7 @@ store secrets of arbitrary size, encrypted with kms data key, in s3 and refer to
 | `-p` | Path      | SSM parameter name for `put` operations; SSM parameter or `s3://` URL for `get` operations |
 | `-r` | Region.   | Region for S3 and SSM  | `us-west-2` |
 
-The content of the secret artifact will come from standard input.
+The content of the secret artifact will come from standard input (`get` operations) or go to standard output (`put` operations).
 
 ## Motivation
 
