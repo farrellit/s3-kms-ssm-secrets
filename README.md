@@ -1,6 +1,20 @@
 # s3-kms-ssm-secrets
 store secrets of arbitrary size, encrypted with kms data key, in s3 and refer to them from ssm.  Pipe secret data in and out of a commandline binary.  
 
+## Usage
+
+### Parameters
+
+| flag | purpose | valid values (or example values) |
+| - | - | - |
+| `-o` | Operation | `put` to publish , `get` to retrieve |
+| `-p` | Path      | SSM parameter name for `put` operations; SSM parameter or `s3://` URL for `get` operations |
+| `-r` | Region.   | Region for S3 and SSM  | `us-west-2` |
+
+The content of the secret artifact will come from standard input (`get` operations) or go to standard output (`put` operations).
+
+## Motivation
+
 SSM is a wonderful service, with read-after-write consistency, that can store up to 1k of secret data and allows 20,000 free api calls a month.  
 Its principle limitation is that it can't store large blobs of data.
 
