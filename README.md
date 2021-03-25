@@ -31,8 +31,10 @@ be run in reverse, reading the ssm secret to find the s3 key, and then reading i
 
 ## Why not just use s3?
 
-Because s3 is not read-after-write consistent.  This may surprise many but it is in fact true.  Perhaps one tenth of one percent of the time 
-you can get the old data.  It could even take up to 24 hours to retrieve the new version - though likely it will take seconds or less. 
+~~Because s3 is not read-after-write consistent.  This may surprise many but it is in fact true.  Perhaps one tenth of one percent of the time 
+you can get the old data.  It could even take up to 24 hours to retrieve the new version - though likely it will take seconds or less.~~
+
+As of late 2020, S3 _is_ read-after-write consistent.  It is the cloudformation integration to SSM along with its limited content size that keeps me using this.
 
 ## Why not just use SSM? 
 
