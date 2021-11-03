@@ -7,9 +7,12 @@ store secrets of arbitrary size, encrypted with kms data key, in s3 and refer to
 
 | flag | purpose | valid values (or example values) |
 | - | - | - |
-| `-o` | Operation | `put` to publish , `get` to retrieve |
+| `-O` | Operation | `put` to publish , `get` to retrieve |
 | `-p` | Path      | SSM parameter name for `put` operations; SSM parameter or `s3://` URL for `get` operations |
-| `-r` | Region.   | Region for S3 and SSM  | `us-west-2` |
+| `-r` | Region    | Region for S3 and SSM - `us-west-2` |
+| `-b` | Bucket    | S3 Bucket in which to upload secrets |
+| `-k` | Key       | KMS key with which to client-encrypt secrets |
+| `-e` | Ext       | File suffix for the S3 Object Key - example: `.tar` |
 
 The content of the secret artifact will come from standard input (`get` operations) or go to standard output (`put` operations).
 

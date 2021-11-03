@@ -14,6 +14,7 @@ func main() {
 		Bucket string `short:"b" long:"bucket" description:"bucket in which to place secrets"`
 		Key    string `short:"k" long:"key" description:"key with which to client-encrypt secrets"`
 		Op     string `short:"O" long:"operation" description:"operation, get or put" choice:"get" choice:"put" required:"t"`
+		Ext    string `short:"e" long:"extenion" description:"extension, file suffix"`
 	}
 	if _, err := flags.Parse(&opts); err != nil {
 		log.Fatal("Could not parse command line options:", err)
@@ -35,6 +36,7 @@ func main() {
 		Path:   opts.Path,
 		Bucket: opts.Bucket,
 		Key:    opts.Key,
+		Ext:    opts.Ext,
 	}
 	s5.Initialize()
 	if opts.Op == "put" {

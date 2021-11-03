@@ -26,6 +26,7 @@ type S3SSMSecret struct {
 	Path   string
 	Bucket string
 	Key    string
+	Ext    string
 	sess   *session.Session
 	awscfg *aws.Config
 	s3c    *s3.S3
@@ -57,7 +58,7 @@ func (s5 *S3SSMSecret) Put(in io.Reader) (s3objkey string, err error) {
 	shasum := hex.EncodeToString(sha.Sum(nil))
 	log.Println(os.Stderr, "Input shasum is ", shasum)
 	s5.tmpf.Seek(0, os.SEEK_SET)
-	s3objkey = path.Join(s5.Path, shasum)
+	s3objkey = path.Join(s5.Path, shasum + s5.Ext)
 	s3url := fmt.Sprintf("s3://%s", path.Join(s5.Bucket, s3objkey))
 	if !s5.ObjectExists(s3objkey) {
 		handler := s3crypto.NewKMSKeyGenerator(kms.New(s5.sess), s5.Key)
